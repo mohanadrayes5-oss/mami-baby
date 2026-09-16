@@ -1,6 +1,4 @@
 import { useMemo, useState } from "react";
-import { startLogin } from "@/const";
-import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import {
   Baby, Bell, CalendarDays, ChevronLeft, CircleUserRound, Droplets, HeartPulse, Home as HomeIcon,
@@ -18,41 +16,31 @@ const navItems = [
 
 type Screen = "dashboard" | "feeding" | "diapers" | "medical" | "profile" | "settings" | "plans";
 
+const DEMO_USER = { name: "سارة", email: "demo@mamibaby.app", role: "user" };
+const DEMO_CHILD = { id: 0, name: "ليان", ageMonths: 6, weightKg: "6.8", birthStatus: "born" };
+const DEMO_FEEDINGS = [{ id: "demo-feed-1", feedingType: "breast", breastSide: "right", durationMinutes: 18, loggedAt: new Date(Date.now() - 45 * 60 * 1000) }];
+const DEMO_DIAPERS = [{ id: "demo-diaper-1", diaperType: "pee", peeColor: "أصفر طبيعي", loggedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) }];
+const DEMO_MEDICAL = [{ id: "demo-medical-1", kind: "vaccine", title: "تطعيمات عمر 6 أشهر", eventDate: new Date(Date.now() + 14 * 86400000), clinic: "العيادة القريبة" }];
+
 function formatTime(date?: Date | string | null) {
   if (!date) return "—";
   return new Date(date).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
 }
 
-function LoginView() {
-  return (
-    <main className="auth-page">
-      <div className="brand-mark large"><Baby className="h-12 w-12" /></div>
-      <p className="eyebrow">رفيقك الهادئ في رحلة الأمومة</p>
-      <h1 className="auth-title">Mami <span>Baby</span></h1>
-      <p className="auth-copy">احفظي تفاصيل طفلك، تابعي يومه، واطمئني أكثر مع مساحة مصممة لكِ.</p>
-      <div className="auth-card">
-        <div className="auth-card-icon"><ShieldCheck className="h-5 w-5" /></div>
-        <h2>ابدئي رحلتك بأمان</h2>
-        <p>تسجيل الدخول يحفظ بياناتك الخاصة في حسابك فقط.</p>
-        <button className="primary-button w-full" onClick={() => startLogin()}>
-          تسجيل الدخول أو إنشاء حساب <ChevronLeft className="h-4 w-4" />
-        </button>
-        <small>سنستخدم تسجيل الدخول الآمن من Manus ولن نطلب كلمة مرور داخل التطبيق.</small>
-      </div>
-      <div className="auth-features"><span>خصوصية أولاً</span><span>RTL عربي</span><span>متابعة يومية</span></div>
-    </main>
-  );
-}
-
 export default function Home() {
-  const { user, loading, isAuthenticated, logout } = useAuth();
+  const isAuthenticated = false;
+  const user = DEMO_USER;
+  const [demoChildren, setDemoChildren] = useState<any[]>([DEMO_CHILD]);
+  const [demoFeedings, setDemoFeedings] = useState<any[]>(DEMO_FEEDINGS);
+  const [demoDiapers, setDemoDiapers] = useState<any[]>(DEMO_DIAPERS);
+  const [demoProfile, setDemoProfile] = useState<any>({ age: 30, childrenCount: 1, marriageYears: 3, weightKg: "64", healthStatus: "" });
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [activeChildId, setActiveChildId] = useState<number | null>(null);
   const [showChildModal, setShowChildModal] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
   const childrenQuery = trpc.children.list.useQuery(undefined, { enabled: isAuthenticated });
-  const children = childrenQuery.data ?? [];
+  const children = isAuthenticated ? (childrenQuery.data ?? []) : demoChildren;
   const activeChild = useMemo(() => children.find(child => child.id === activeChildId) ?? children[0], [children, activeChildId]);
   const resolvedChildId = activeChild?.id ?? 0;
   const dashboardQuery = trpc.dashboard.useQuery({ childId: resolvedChildId }, { enabled: isAuthenticated && resolvedChildId > 0 });
@@ -71,10 +59,7 @@ export default function Home() {
     onError: error => toast.error(error.message),
   });
 
-  if (loading) return <div className="loading-page"><div className="spinner" /><span>نجهّز مساحتك الخاصة...</span></div>;
-  if (!isAuthenticated || !user) return <LoginView />;
-
-  const dashboard = dashboardQuery.data;
+  const dashboard = isAuthenticated ? dashboardQuery.data : { feedings: demoFeedings, diapers: demoDiapers, medical: DEMO_MEDICAL };
   const lastFeeding = dashboard?.feedings?.[0];
   const lastDiaper = dashboard?.diapers?.[0];
 
@@ -92,19 +77,19 @@ export default function Home() {
 
       <main className="app-content">
         {screen === "dashboard" && <DashboardScreen userName={user.name ?? "سارة"} child={activeChild} lastFeeding={lastFeeding} lastDiaper={lastDiaper} onGo={go} />}
-        {screen === "feeding" && <FeedingScreen childId={resolvedChildId} logs={dashboard?.feedings ?? []} onAdd={(data) => addFeeding.mutate({ childId: resolvedChildId, ...data })} pending={addFeeding.isPending} />}
-        {screen === "diapers" && <DiaperScreen childId={resolvedChildId} logs={dashboard?.diapers ?? []} onAdd={(data) => addDiaper.mutate({ childId: resolvedChildId, ...data })} pending={addDiaper.isPending} />}
+        {screen === "feeding" && <FeedingScreen childId={resolvedChildId} logs={dashboard?.feedings ?? []} onAdd={(data) => isAuthenticated ? addFeeding.mutate({ childId: resolvedChildId, ...data }) : setDemoFeedings(logs => [{ ...data, id: `demo-feed-${Date.now()}`, loggedAt: new Date() }, ...logs])} pending={isAuthenticated && addFeeding.isPending} />}
+        {screen === "diapers" && <DiaperScreen childId={resolvedChildId} logs={dashboard?.diapers ?? []} onAdd={(data) => isAuthenticated ? addDiaper.mutate({ childId: resolvedChildId, ...data }) : setDemoDiapers(logs => [{ ...data, id: `demo-diaper-${Date.now()}`, loggedAt: new Date() }, ...logs])} pending={isAuthenticated && addDiaper.isPending} />}
         {screen === "medical" && <MedicalScreen events={dashboard?.medical ?? []} />}
-        {screen === "profile" && <ProfileScreen profile={profileQuery.data} onSaved={() => profileQuery.refetch()} />}
+        {screen === "profile" && <ProfileScreen profile={isAuthenticated ? profileQuery.data : demoProfile} onSaved={() => profileQuery.refetch()} onSave={isAuthenticated ? undefined : (form) => { setDemoProfile(form); toast.success("تم حفظ الملف التجريبي"); }} />}
         {screen === "plans" && <PlansScreen />}
-        {screen === "settings" && <SettingsScreen user={user} onGo={go} onLogout={() => logout()} />}
+        {screen === "settings" && <SettingsScreen user={user} onGo={go} onLogout={() => toast.info("أنتِ في الوضع التجريبي — لا تحتاجين إلى تسجيل الخروج")} />}
       </main>
 
       <nav className="bottom-nav">
         {navItems.map(item => { const Icon = item.icon; const active = item.id === screen; return <button key={item.id} className={active ? "active" : ""} onClick={() => go(item.id as Screen)}><Icon className="h-5 w-5" /><span>{item.label}</span></button>; })}
       </nav>
 
-      {showChildModal && <ChildModal children={children} activeId={resolvedChildId} onSelect={(id) => { setActiveChildId(id); setShowChildModal(false); }} onClose={() => setShowChildModal(false)} onAdd={(data) => addChild.mutate(data)} pending={addChild.isPending} />}
+      {showChildModal && <ChildModal children={children} activeId={resolvedChildId} onSelect={(id) => { setActiveChildId(id); setShowChildModal(false); }} onClose={() => setShowChildModal(false)} onAdd={(data) => isAuthenticated ? addChild.mutate(data) : (setDemoChildren(list => [...list, { ...data, id: Date.now() }]), setShowChildModal(false), toast.success("تمت إضافة ملف تجريبي"))} pending={isAuthenticated && addChild.isPending} />}
     </div>
   );
 }
@@ -141,9 +126,9 @@ function DiaperScreen({ childId, logs, onAdd, pending }: { childId: number; logs
 
 function MedicalScreen({ events }: { events: any[] }) { return <div className="screen-stack"><ScreenTitle icon={<Syringe />} title="المتابعة الطبية" subtitle="التطعيمات، الزيارات، والملفات الطبية" /><div className="medical-banner"><div><span className="pill green">موعد قادم</span><h2>تطعيمات عمر 6 أشهر</h2><p>الثلاثي البكتيري + شلل الأطفال</p></div><div className="date-badge"><b>28</b><span>أكتوبر</span></div></div><div className="section-heading"><h2>أقسام المتابعة</h2></div><div className="medical-grid"><button><Syringe /><b>التطعيمات</b><span>المواعيد والتذكير</span></button><button><HeartPulse /><b>زيارات الطبيب</b><span>تاريخ المتابعات</span></button><button><CalendarDays /><b>ملفات طبية</b><span>صور ونتائج تحاليل</span></button></div><Timeline title="المواعيد المسجلة" items={events.map(event => ({ icon: event.kind === "vaccine" ? "💉" : "🩺", title: event.title, time: new Date(event.eventDate).toLocaleDateString("ar-SA"), note: event.clinic ?? "" }))} empty="ستظهر مواعيدك هنا" /></div>; }
 
-function ProfileScreen({ profile, onSaved }: { profile: any; onSaved: () => void }) { const [form, setForm] = useState({ age: profile?.age ?? 30, childrenCount: profile?.childrenCount ?? 1, marriageYears: profile?.marriageYears ?? 3, weightKg: profile?.weightKg ?? "", healthStatus: profile?.healthStatus ?? "" }); const save = trpc.profile.save.useMutation({ onSuccess: () => { onSaved(); toast.success("تم حفظ ملف الأم"); }, onError: e => toast.error(e.message) }); return <div className="screen-stack"><ScreenTitle icon={<UserRound />} title="ملف الأم" subtitle="معلوماتك محفوظة بشكل خاص لحسابك" /><section className="form-card"><div className="profile-avatar"><CircleUserRound /></div><Field label="العمر" type="number" value={form.age} onChange={v => setForm({ ...form, age: Number(v) })} /><Field label="عدد الأطفال" type="number" value={form.childrenCount} onChange={v => setForm({ ...form, childrenCount: Number(v) })} /><Field label="مدة الزواج بالسنوات" type="number" value={form.marriageYears} onChange={v => setForm({ ...form, marriageYears: Number(v) })} /><Field label="الوزن الحالي" value={form.weightKg} onChange={v => setForm({ ...form, weightKg: v })} placeholder="مثال: 64 كغ" /><label className="field-label">الحالة الصحية<textarea value={form.healthStatus} onChange={e => setForm({ ...form, healthStatus: e.target.value })} placeholder="اذكري أي ملاحظات صحية مهمة" /></label><button className="primary-button w-full" onClick={() => save.mutate(form)} disabled={save.isPending}>{save.isPending ? "جارٍ الحفظ..." : "حفظ التغييرات"}</button></section></div>; }
+function ProfileScreen({ profile, onSaved, onSave }: { profile: any; onSaved: () => void; onSave?: (form: any) => void }) { const [form, setForm] = useState({ age: profile?.age ?? 30, childrenCount: profile?.childrenCount ?? 1, marriageYears: profile?.marriageYears ?? 3, weightKg: profile?.weightKg ?? "", healthStatus: profile?.healthStatus ?? "" }); const save = trpc.profile.save.useMutation({ onSuccess: () => { onSaved(); toast.success("تم حفظ ملف الأم"); }, onError: e => toast.error(e.message) }); return <div className="screen-stack"><ScreenTitle icon={<UserRound />} title="ملف الأم" subtitle="معلوماتك محفوظة بشكل خاص لحسابك" /><section className="form-card"><div className="profile-avatar"><CircleUserRound /></div><Field label="العمر" type="number" value={form.age} onChange={v => setForm({ ...form, age: Number(v) })} /><Field label="عدد الأطفال" type="number" value={form.childrenCount} onChange={v => setForm({ ...form, childrenCount: Number(v) })} /><Field label="مدة الزواج بالسنوات" type="number" value={form.marriageYears} onChange={v => setForm({ ...form, marriageYears: Number(v) })} /><Field label="الوزن الحالي" value={form.weightKg} onChange={v => setForm({ ...form, weightKg: v })} placeholder="مثال: 64 كغ" /><label className="field-label">الحالة الصحية<textarea value={form.healthStatus} onChange={e => setForm({ ...form, healthStatus: e.target.value })} placeholder="اذكري أي ملاحظات صحية مهمة" /></label><button className="primary-button w-full" onClick={() => onSave ? onSave(form) : save.mutate(form)} disabled={save.isPending && !onSave}>{save.isPending ? "جارٍ الحفظ..." : "حفظ التغييرات"}</button></section></div>; }
 
-function SettingsScreen({ user, onGo, onLogout }: { user: any; onGo: (screen: Screen) => void; onLogout: () => void }) { return <div className="screen-stack"><ScreenTitle icon={<Menu />} title="المزيد" subtitle="الإعدادات والاشتراك والخصوصية" /><div className="settings-card"><div className="user-row"><div className="avatar">{user.name?.[0] ?? "م"}</div><div><b>{user.name ?? "حسابي"}</b><span>{user.email ?? "حساب Manus"}</span></div></div><button onClick={() => onGo("profile")}><UserRound /> ملف الأم <ChevronLeft /></button><button onClick={() => onGo("plans")}><WalletCards /> الاشتراك والباقات <ChevronLeft /></button><button onClick={() => toast.info("التنبيهات المحلية ستُفعّل في نسخة الهاتف") }><Bell /> التنبيهات <ChevronLeft /></button><button onClick={() => toast.info("العربية مفعلة حالياً مع اتجاه RTL") }><Sparkles /> اللغة والمظهر <span className="setting-value">العربية</span></button></div><div className="privacy-note"><ShieldCheck /><span><b>بياناتك لكِ</b><small>تُحفظ السجلات داخل حسابك ولا تظهر لمستخدمين آخرين.</small></span></div><button className="logout-button" onClick={onLogout}><LogOut /> تسجيل الخروج</button></div>; }
+function SettingsScreen({ user, onGo, onLogout }: { user: any; onGo: (screen: Screen) => void; onLogout: () => void }) { return <div className="screen-stack"><ScreenTitle icon={<Menu />} title="المزيد" subtitle="الإعدادات والاشتراك والخصوصية" /><div className="settings-card"><div className="user-row"><div className="avatar">{user.name?.[0] ?? "م"}</div><div><b>{user.name ?? "حسابي"}</b><span>{user.email ?? "الحساب التجريبي"}</span></div></div><button onClick={() => onGo("profile")}><UserRound /> ملف الأم <ChevronLeft /></button><button onClick={() => onGo("plans")}><WalletCards /> الاشتراك والباقات <ChevronLeft /></button><button onClick={() => toast.info("التنبيهات المحلية ستُفعّل في نسخة الهاتف") }><Bell /> التنبيهات <ChevronLeft /></button><button onClick={() => toast.info("العربية مفعلة حالياً مع اتجاه RTL") }><Sparkles /> اللغة والمظهر <span className="setting-value">العربية</span></button></div><div className="privacy-note"><ShieldCheck /><span><b>بياناتك لكِ</b><small>تُحفظ السجلات داخل حسابك ولا تظهر لمستخدمين آخرين.</small></span></div><button className="logout-button" onClick={onLogout}><LogOut /> تسجيل الخروج</button></div>; }
 
 function PlansScreen() { const plans = [{ name: "مجاني", price: "0", copy: "طفل واحد", active: true }, { name: "عادي", price: "19", copy: "حتى 5 أطفال + 500MB", active: false }, { name: "مميز", price: "39", copy: "تخزين يتجاوز 10GB", active: false }]; return <div className="screen-stack"><ScreenTitle icon={<WalletCards />} title="الاشتراك" subtitle="اختاري المساحة التي تناسب عائلتك" /><div className="stripe-notice"><WalletCards /><span><b>الدفع الآمن عبر Stripe</b><small>ستظهر صفحة الدفع بعد إضافة مفاتيح Stripe من إعدادات المشروع. لا نخزن بيانات البطاقات داخل التطبيق.</small></span></div><div className="plans-list">{plans.map(plan => <div className={`plan-card ${plan.name === "عادي" ? "featured" : ""}`} key={plan.name}>{plan.name === "عادي" && <span className="popular">الأكثر اختياراً</span>}<h3>{plan.name}</h3><div className="plan-price"><b>{plan.price}</b><span>ر.س / شهرياً</span></div><p>{plan.copy}</p><button className={plan.active ? "secondary-button" : "primary-button"} onClick={() => plan.active ? toast.info("أنتِ على الباقة المجانية") : toast.info("Stripe غير مفعّل بعد — أضيفي STRIPE_SECRET_KEY و VITE_STRIPE_PUBLISHABLE_KEY لتفعيل Checkout")}>{plan.active ? "الباقة الحالية" : "اختيار الباقة"}</button></div>)}</div></div>; }
 
