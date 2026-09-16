@@ -7,8 +7,6 @@ const config: CapacitorConfig = {
   bundledWebRuntime: false,
   server: {
     androidScheme: "https",
-    url: "https://mamibaby-thxcfe8k.manus.space",
-    cleartext: false,
   },
 };
 
